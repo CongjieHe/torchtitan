@@ -107,6 +107,10 @@ class ParallelDims:
         logger.info(f"Building {len(dims)}-D device mesh with {names}, {dims}")
         mesh = init_device_mesh(device_type, dims, mesh_dim_names=names)
 
+        if self.world_size == 1:
+            mesh[("dp_shard",)]._flatten(mesh_dim_name="dp_shard_cp")
+            return mesh
+
         # Create all the submesh here to ensure all required process groups are
         # initialized:
         # Mesh for data loading (no communication on this mesh)
@@ -147,14 +151,26 @@ class ParallelDims:
     def _build_mesh_without_ep(self) -> DeviceMesh:
         dims = []
         names = []
-        for d, name in zip(
-            [self.pp, self.dp_replicate, self.dp_shard, self.cp, self.tp],
-            ["pp", "dp_replicate", "dp_shard", "cp", "tp"],
-        ):
-            if d > 1:
-                dims.append(d)
-                names.append(name)
+        if self.world_size == 1:
+            dims = [1]
+            names = ["dp_shard"]
+        else:
+            for d, name in zip(
+                [self.pp, self.dp_replicate, self.dp_shard, self.cp, self.tp],
+                ["pp", "dp_replicate", "dp_shard", "cp", "tp"],
+            ):
+                if d > 1:
+                    dims.append(d)
+                    names.append(name)
+        # for d, name in zip(
+        #     [self.pp, self.dp_replicate, self.dp_shard, self.cp, self.tp],
+        #     ["pp", "dp_replicate", "dp_shard", "cp", "tp"],
+        # ):
+        #     if d > 1:
+        #         dims.append(d)
+        #         names.append(name)
 
+        # logger.info(f"world_size: {self.world_size}")
         logger.info(f"Building {len(dims)}-D device mesh with {names}, {dims}")
         mesh = init_device_mesh(device_type, dims, mesh_dim_names=names)
 
@@ -219,7 +235,8 @@ class ParallelDims:
 
     @property
     def fsdp_enabled(self):
-        return self.dp_shard_enabled or self.cp_enabled
+        # return self.dp_shard_enabled or self.cp_enabled
+        return self.dp_shard_enabled or self.cp_enabled or (self.world_size == 1)
 
     @property
     def tp_enabled(self):
