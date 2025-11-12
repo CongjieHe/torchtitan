@@ -285,6 +285,8 @@ def init_distributed(
         timeout=timedelta(seconds=comm_config.init_timeout_seconds),
     )
 
+def barrier(group=None, async_op=False, device_ids=None):
+    torch.distributed.barrier(group=group, device_ids=device_ids)
 
 def set_pg_timeouts(timeout, world_mesh):
     """

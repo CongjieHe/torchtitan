@@ -1,6 +1,6 @@
 [job]
 dump_folder = "./outputs"
-description = "Gpt-oss 20B training"
+description = "Gpt-oss 20B FPDT training"
 print_config = false
 
 [profiling]
@@ -18,7 +18,7 @@ save_tb_folder = "tb"
 enable_wandb = false
 
 [model]
-name = "gpt_oss"
+name = "gpt_oss_fpdt"
 flavor = "20b"
 hf_assets_path = "./assets/hf/gpt-oss-20b"
 # converters = ["float8"]
@@ -45,7 +45,7 @@ enable_cpu_offload = true
 
 [parallelism]
 data_parallel_replicate_degree = 1
-data_parallel_shard_degree = 1
+data_parallel_shard_degree = -1
 fsdp_reshard_after_forward = "never" # default / never / always
 tensor_parallel_degree = 1
 enable_async_tensor_parallel = false

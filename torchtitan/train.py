@@ -9,8 +9,9 @@ import os
 import time
 from datetime import timedelta
 from typing import Any, Generator, Iterable, Optional
-
+from transformers import AutoModel, PretrainedConfig, PreTrainedModel
 import torch
+import torch.nn as nn
 from torch.distributed.elastic.multiprocessing.errors import record
 
 import torchtitan.protocols.train_spec as train_spec_module
@@ -32,7 +33,28 @@ from torchtitan.tools.profiling import (
     maybe_enable_profiling,
 )
 
+import deepspeed as ds
 
+class MockConfig(PretrainedConfig):
+    model_type = "mock model"
+
+    def __init__(self, hidden_size=8, **kwargs):
+        super().__init__(**kwargs)
+        self.hidden_size = hidden_size
+
+class MockModel(PreTrainedModel):
+    config_class = MockConfig
+
+    def __init__(self, config: MockConfig):
+        super().__init__(config)
+        self.linear = nn.Linear(config.hidden_size, config.hidden_size)
+        self.post_init()
+    
+    def forward(self, input_embeds=None, **kwargs):
+        output = self.linear(input_embeds)
+        return {"output": output}
+
+    
 class Trainer(torch.distributed.checkpoint.stateful.Stateful):
     # core configs
     job_config: JobConfig
@@ -142,6 +164,17 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful):
         # set the model args from training job configs
         model_args.update_from_config(job_config)
         self.model_args = model_args
+
+        # mock_model = AutoModel.from_pretrained('bert-base-uncased')
+        mock_model = MockModel(MockConfig())
+        ds_engine, _, _, _ = ds.initialize(
+            model=mock_model,
+            config_params={
+                "train_batch_size": job_config.training.local_batch_size,
+                "data_parallel_size": 1,
+                "sequence_parallel_size": 1
+            },
+        )
 
         logger.info(
             f"Building {job_config.model.name} {job_config.model.flavor} with {model_args}"
